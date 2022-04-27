@@ -1,0 +1,70 @@
+ observeEvent(input$city_dropdown, {
+#filter the data
+ if(input$city_dropdown == 'All') {
+
+      leafletProxy('city_bike_map') %>%
+      clearShapes()
+      index = which(cities_max_bike$CITY_ASCII == input$city_dropdown)
+      leafletProxy('city_bike_map') %>%
+      addCircles(lng = cities_max_bike$LNG[index],
+        	 lat = cities_max_bike$LAT[index],
+		 popup = cities_max_bike$DETAILED_LABEL[index])
+
+      output$temp_line <- renderPlot({
+        ggplot(city_weather_bike_df, aes(x = city_weather_bike_df$FORECASTDATETIME, y = city_weather_bike_df$TEMPERATURE) +
+               geom_line() +
+	       geom_point() +
+	       geom_text()
+   })
+   else {
+     leafletProxy('city_bike_map')
+   } 
+})
+======================================================================================================================================
+Hint:      radius= ~ifelse(cities_max_bike$BIKE_PREDICTION_LEVEL=='small', 6, 12),
+               color = ~color_levels(cities_max_bike$BIKE_PREDICTION_LEVEL))
+
+                       radius= ~ifelse(LEVEL=='small', 6, 12),
+                       color = ~color_levels(LEVEL),
+                       stroke = FALSE,
+                       fillOpacity = 0.8,
+                       label=~CITY_ASCII)
+
+cities_max_bike
+
+
+      output$temp_line <- renderPlot({
+        ggplot(city_weather_bike_df, aes(FORECASTDATETIME, TEMPERATURE, label = TEMPERATURE)) + geom_line() + geom_point() + geom_text()
+             
+      })
+      
+      output$bike_line <- renderPlot({
+        ggplot(city_weather_bike_df, aes(FORECASTDATETIME, BIKE_PREDICTION, label = TEMPERATURE)) + geom_line() + geom_point() + geom_text()
+        
+      })
+
+=======================================================================================================================================
+cities_max_bike <- city_weather_bike_df %>%
+group_by(CITY_ASCII,LAT,LNG,BIKE_PREDICTION,BIKE_PREDICTION_LEVEL,LABEL,DETAILED_LABEL,FORECASTDATETIME,TEMPERATURE ) %>%
+ summarize(count = n(), 
+max = max(BIKE_PREDICTION, na.rm = TRUE))
+
+  # Then render output plots with an id defined in ui.R
+  output$city_bike_map <- renderLeaflet({
+      leaflet(cities_max_bike) %>%
+        addTiles() %>%
+        addCircleMarkers(data = cities_max_bike, lng = cities_max_bike$LNG, lat = cities_max_bike$LAT, 
+                         popup = cities_max_bike$LABEL,
+                         color = cities_max_bike$BIKE_PREDICTION_LEVEL, 
+                         radius = cities_max_bike$BIKE_PREDICTION_LEVEL)
+
+
+
+
+      output$bike_line <- renderPlot({
+        ggplot(city_weather_bike_df, aes(FORECASTDATETIME, BIKE_PREDICTION, label = TEMPERATURE)) + 
+               geom_line() + 
+               geom_point() + 
+               geom_text()
+        
+      })

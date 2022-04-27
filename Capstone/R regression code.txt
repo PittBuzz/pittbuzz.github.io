@@ -1,0 +1,50 @@
+abs_cof_df <- stack(abs(lm_model_all$fit$coefficients))
+names(abs_cof_df) <- c("Coef", "Variable")
+abs_cof_df <- abs_cof_df %>% 
+                select(Variable, Coef)
+coefs_sorted <- arrange(abs_cof_df, -Coef) 
+coefs_sorted <- na.omit(coefs_sorted)
+
+# Draw bar charts for the sorted coefficients
+ggplot(data=coefs_sorted, aes(x= reorder(Variable,Coef),Coef)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  theme_minimal()
+
+
+
+lm_poly <- lm(RENTED_BIKE_COUNT ~ poly(TEMPERATURE, 6) + poly(HUMIDITY, 4) + poly(DEW_POINT_TEMPERATURE, 3), data = train_data)
+
+test_results <- lm_poly %>%
+            predict(new_data = test_data) %>%
+            mutate(truth = test_data$RENTED_BIKE_COUNT)
+head(test_results)
+
+
+
+
+lm_spec <- linear_reg() %>% 
+  set_engine("lm") %>% 
+  set_mode("regression")
+
+lm_model_all <- lm_spec %>% 
+  fit(RENTED_BIKE_COUNT ~ ., data = train_data)
+
+test_results_all <- lm_model_all %>%
+
+predict(new_data = test_data) %>%
+
+mutate(truth = test_data$RENTED_BIKE_COUNT)
+
+
+
+fit(RENTED_BIKE_COUNT ~ 
+        RAINFALL +  SNOWFALL  + 
+        + poly(HUMIDITY, 4) + 
+        poly(DEW_POINT_TEMPERATURE, 4) +
+        + poly(TEMPERATURE, 4) + poly(SOLAR_RADIATION, 4) + 
+        VISIBILITY + WIND_SPEED + HOLIDAY +
+        WINTER + SPRING + SUMMER + AUTUMN + 
+        `0`+ `1` + `2` + `3` + `4` + `5` + `6` + `7` + `8` + `9` + `10` + `11` + 
+        `12` + `13` + `14` + `15` + `16` + `17` + `18` + `19` + `20` + `21` + `22` + `23`, 
+      data = test_data)
