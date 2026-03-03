@@ -1,0 +1,22 @@
+/****** Table Age Analysis  ******/
+
+declare @process_dt date
+declare @Last_yr date 
+
+select @process_dt  = max(process_dt) from [G1Lifecycle_QC].[dbo].QCResults_TableAge 
+set @Last_yr = dateadd(YY,-1,@process_dt)
+
+
+   select q.TableName, count as DaysFlagged, run_dt, process_dt, TableAge, Warn_QTY,  Critical_DT, case when CriticalThreshold=-1 then 'Not in Mangement Table' when CriticalThreshold=-2 then 'Not in Meta' else cast(CriticalThreshold as varchar) end as CriticalThreshold
+   ,'Select distinct ' + case when q.tablename like 'dim%' then 'start_dt' else 'run_dt' end + ' from g1lifecycle_DW_DP.dbo.'+q.tablename+' order by 1 desc' as SQlQuery
+   from [G1Lifecycle_QC].[dbo].QCResults_TableAge q
+   inner join (
+  Select TableName ,Count(*) as count
+from [G1Lifecycle_QC].[dbo].[QCResults_TableAge]
+  where  process_dt>=@Last_yr
+  group by TableName
+  ) c on q.TableName=c.TableName
+   where Process_DT=@process_dt
+   order by run_dt desc,count desc,criticalthreshold
+
+
