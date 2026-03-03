@@ -1,0 +1,192 @@
+use G1LifeCycle_GIMS
+go
+ -------------------------Add in previous status to report Loss reason Contract type-----------------------------
+
+ --------------------------------------------------------------------------------------------------------
+declare @fy int = null
+declare @run_dt date=getdate() 
+if object_id('tempdb..#contractStates') is null
+begin
+ 
+select sms.ID as StateMachineStateID
+into #contractStates
+from sm.StateMachineState sms
+inner join sm.Statemachine s on sms.StateMachineID = s.ID
+inner join IMARC_GIMS.dbo.tLookup_ContractType_Program cttp on sms.StateMachineID = cttp.ContractStateMachineID
+where 
+(s.Name like '%SRIP%' and sms.Name not in ('Override Request Denied', 'Denied', 'Invalidate'))
+or ((cttp.Program in ('SLRP', 'CLRP') or cttp.Program = 'HPI' and cttp.ContractType = 'HP') and sms.Name not in ('Disapproved Control Number Requests', 'Invalid'))
+or (cttp.Program = 'HPI' and cttp.ContractType = 'HB' and sms.Name not in (''))
+--order by sms.ID
+ 
+--select * from #contractStates order by StateMachineStateID
+ 
+-- drop table #contractStates
+end
+ 
+if object_id('tempdb..#paymentStates') is null
+begin
+ 
+select 
+sms.ID as StateMachineStateID, sms.Name, cttp.*
+--distinct cttp.*
+into #paymentStates
+from sm.stateMachineState sms
+inner join sm.StateMachine s on sms.StateMachineID = s.ID
+inner join IMARC_GIMS.dbo.tLookup_ContractType_Program cttp on sms.StateMachineID = cttp.PaymentStateMachineID
+where
+--sms.Name not like '%monitor%' and 
+((cttp.Program = 'SRIP' and sms.Name not in ('Cancelled', 'Payment Cancelled', 'Soldier Paid', 'Awaiting Reconciliation', 'Verified by DFAS', 'Verified by DFAS', 'Awaiting DFAS Rejects Processing', 'Deleted'))
+or ((cttp.Program in ('SLRP', 'CLRP') or cttp.Program = 'HPI' and cttp.ContractType = 'HP') and sms.Name not in ('Soldier Paid', 'Transmittal Letter Certified', 'Deleted', 'TRANSMITTAL LETTER PRINTED REPORT None'))
+or (cttp.Program = 'HPI' and cttp.ContractType = 'HB' and sms.Name not in ('Deleted', 'Awaiting DFAS Processing', 'Paid by DFAS') and sms.Name not like 'IMARC%') 
+)
+ 
+-- drop table #paymentStates
+ 
+--select * from sm.StateMachineState where ID = 308003
+end
+ ;
+ with WorkBins  as (
+ select distinct  wbc.ShortName AS CategoryName
+              ,sc.NAME AS Sectionname
+              ,wa.NAME AS WorkAreaName
+              ,w.shortname as WorkBucketName
+              ,wi.ShortName AS WorkItemName
+			  ,wics.statemachinestateid
+       FROM wb.WorkBucketCategory wbc
+	   
+       INNER JOIN wb.Section sc ON wbc.ID = sc.WorkBucketCategoryID
+INNER JOIN wb.WorkArea wa ON sc.ID = wa.SectionID
+       INNER JOIN wb.WorkBucket w ON wa.ID = w.WorkAreaID
+       INNER JOIN wb.WorkItem wi ON w.ID = wi.WorkBucketID
+       INNER JOIN wb.WorkItemCount wic ON wi.ID = wic.WorkItemID
+       INNER JOIN wb.WorkItemCountState wics ON wic.ID = wics.WorkItemCountID
+	 where  sc.NAME='SRIP Section'
+ ) 
+ 	 ,
+	  MRFOrder AS (
+    SELECT * FROM (
+        VALUES
+            
+			('State Review', 1),
+			('Unit Review', 2),
+			('NGB Review', 3),
+			('Awaiting External Data Update', 4),
+			('Returned to State Without Action', 5)
+
+
+
+        ) AS a (WorkItem, Priority)
+    )
+
+	,
+	MRF_Bins as(
+
+Select ContractEntityStateMemberID, mwb.WorkItemName as MonitorWorkBin, mrfo.Priority, row_number () over (Partition by ContractEntityStateMemberID order by mrfo.Priority) as RN
+
+from
+G1Lifecycle_GIMS.monitor.MonitorCaseToRuleCase mon 
+inner join G1Lifecycle_GIMS.sm.EntityStateMember mesm ON mon.RuleEntityStateMemberID = mesm.ID
+inner join G1Lifecycle_GIMS.sm.StateMachineState msms ON msms.ID = mesm.StateMachineStateID_Current and shortuilabel='Pending'
+inner join workbins mwb on mwb.StateMachineStateID=msms.ID
+inner join mrforder mrfo on mrfo.workitem=mwb.WorkItemName
+)
+
+,
+TermBin as (Select distinct c.artifactid,WorkItemName
+
+from  
+IMARC_GIMS.dbo.tblContracts c 
+inner join [G1Lifecycle_GIMS].[sm].[EntityStateMember] tesm on tesm.artifactID=c.artifactID
+inner join workbins wb on wb.statemachinestateid=tesm.StateMachineStateID_Current and workitemname is not null
+where sectionname='SRIP Section' and workbucketname='Termination Center'
+)
+
+
+
+select top 100 @run_dt as run_dt,  c.FY, c.ControlNumber, s.UnitState,s.UPC,s.Grade,s.MPC, s.name as SoldierName, s.SSNID, s.PMOS as PrimaryMOS, s.rcms_secondaryMOS_CD as SecondaryMOS, c.BonusMOS, InStrength = case when qqrcs.ssnid is null then 'NO' else 'YES' end, m.description as LossReason, cast(f.run_dt as date) as LossDate,
+p.payNo, p.IorA as PaymentType, p.Amount, cast(p.PayDT as date) as PayDT, p.FY_PayDt as PaymentFY, sms.Label as PaymentStatus,  bpsms.label as PriorPaymentStatus 
+
+--,pwb.WorkAreaName AS PaymentWorkAreaName
+,pwb.WorkBucketName as PaymentWorkBucketName
+,pwb.WorkItemName AS PaymentWorkItemName
+,cast(esm.LatestAction_DT as date) as PaymentLastActionDate
+
+
+
+,cast(round(((datediff(MINUTE, coalesce(esm.latestAction_DT, getdate()), getdate())) / 1440.0),0) as int) as PaymentDaysInBin,
+
+
+c.ContractType,ct.description as ContractTypeDescription,  c.Rate_Code, c.OSBDate as ContractStartDate, csms.Label as ContractStatus, bsms.label as PriorContractStatus 
+--,cwb.WorkAreaName AS ContractWorkAreaName
+,cwb.WorkBucketName as ContractWorkBucketName
+,cwb.WorkItemName AS ContractWorkItemName
+,mwb.MonitorWorkBin
+,twb.WorkItemName AS TerminationWorkItem
+,CASE WHEN   csms.Label='Termination Process' and cr.Recoup_Amount > 0 AND cr.Recoup_Required = 1 THEN cr.Recoup_Amount WHEN csms.Label='Termination Process' and IsOneHundredPercentRecoupment = 1 THEN c.Rate_Amount ELSE 0 END AS RecoupmentAmount
+ ,CASE WHEN csms.Label='Termination Process' and Recoup_Amount < 0 THEN ABS(Recoup_Amount) ELSE 0 END AS FinalPaymentAmount
+,cast(cesm.latestAction_DT as date) as ContractLastActionDate
+,cast(round(((datediff(MINUTE, coalesce(cesm.latestAction_DT, getdate()), getdate())) / 1440.0),0) as int) as ContractDaysInBin,
+c.Contract_ID, p.PAYMENT_ID, esm.StateMachineStateID_Current as PaymentStateID, cesm.StateMachineStateID_Current as ContractStateID,esm.StateMachineStateID_Before as PriorPaymentStateID, cesm.StateMachineStateID_Before as PriorContractStateID
+from sm.EntityStateMember esm
+inner join IMARC_GIMS.dbo.tblSRIPpayments p on esm.ID = p.EntityStateMemberID
+inner join IMARC_GIMS.dbo.tblContracts c on p.SRIP_ID = c.Contract_ID
+inner join sm.EntityStateMember cesm on c.EntityStateMemberID = cesm.ID
+inner join sm.StateMachineState csms on cesm.StateMachineStateID_Current = csms.ID
+left join sm.StateMachineState bsms on cesm.StateMachineStateID_Before = bsms.ID
+inner join IMARC_GIMS.dbo.tblSoldiers s on c.SSNID = s.SSNID
+inner join sm.StateMachineState sms on esm.StateMachineStateID_Current = sms.ID
+left join sm.StateMachineState bpsms on esm.StateMachineStateID_Before = bpsms.ID
+left join workbins pwb on esm.StateMachineStateID_Current=pwb.statemachinestateid
+left join workbins cwb on cesm.StateMachineStateID_Current=cwb.statemachinestateid
+left join MRF_Bins mwb on mwb.ContractEntityStateMemberID=c.EntityStateMemberID and RN=1
+left join termbin twb on twb.artifactID=c.artifactID
+left join imarc_gims.dbo.tblContracts_Recoupment cr on cr.contract_id=c.contract_id
+left join G1Lifecycle_DW..QQRCurrentStrength qqrcs on qqrcs.ssnid = s.ssnid
+left join [G1Lifecycle_DW_DP].[dbo].[QQRCurrentSoldierHist] q on q.ssnid=s.ssnid
+left join [G1Lifecycle_DW_DP].[dbo].DimSoldierPersonnel dsp on dsp.id=q.SoldierID and loss_yn=1
+left join [G1Lifecycle_DW_DP].[dbo].factsoldierloss f on f.SoldierID=q.SoldierID
+left join g1lifecycle_Lookups.dbo.Lkp_MPAReason_CD_Base m on m.code=dsp.loss_MPAReason_CD
+left join IMARC_GIMS.dbo.tLookup_ContractType ct on ct.code=c.contracttype
+
+
+where 
+esm.StateMachineStateID_Current in (select StateMachineStateID from #paymentStates)
+and cesm.StateMachineStateID_Current in (select StateMachineStateID from #contractStates)
+and p.FY_PayDt = coalesce(@fy, p.FY_PayDt)
+--and csms.Label='Termination Process'
+--and fy=2023
+--and csms.Label='Monitor Rule Failed'-- and mwb.WorkItemName='pending etp'
+order by c.FY, s.UnitState, s.name, c.ControlNumber, p.FY_PayDt
+ 
+ /*
+select c.FY, c.ControlNumber, s.UnitState, s.name as SoldierName, s.SSNID, InStrength = case when qqrcs.ssnid is null then 'NO' else 'YES' end, pg.FY as PaymentFY, csms.Label as ContractStatus, sms.Label as PaymentStatus, c.Contract_ID, pg.PaymentGroup_ID, esm.StateMachineStateID_Current as PaymentStateID, cesm.StateMachineStateID_Current as ContractStateID
+from sm.EntityStateMember esm
+inner join IMARC_GIMS.dbo.tblLoans_PaymentGroups pg on esm.ID = pg.EntityStateMemberID
+inner join IMARC_GIMS.dbo.tblContracts c on pg.Contract_ID = c.Contract_ID
+inner join sm.EntityStateMember cesm on c.EntityStateMemberID = cesm.ID
+inner join sm.StateMachineState csms on cesm.StateMachineStateID_Current = csms.ID
+inner join IMARC_GIMS.dbo.tblSoldiers s on c.SSNID = s.SSNID
+inner join sm.StateMachineState sms on esm.StateMachineStateID_Current = sms.ID
+left join G1Lifecycle_DW..QQRCurrentStrength qqrcs on qqrcs.ssnid = s.ssnid
+where
+esm.StateMachineStateID_Current in (select StateMachineStateID from #paymentStates)
+and cesm.StateMachineStateID_Current in (select StateMachineStateID from #contractStates)
+and pg.FY = coalesce(@fy, pg.FY)
+order by c.FY, s.UnitState, s.name, c.ControlNumber, pg.FY
+ 
+select c.FY, c.ControlNumber, s.UnitState, s.name as SoldierName, s.SSNID, InStrength = case when qqrcs.ssnid is null then 'NO' else 'YES' end, p.payNo, p.Amount, p.PaymentDate, case when datepart(month, p.PaymentDate) >= 10 then datepart(year, p.PaymentDate) + 1 else datepart(year, p.PaymentDate) end as PaymentFY, csms.Label as ContractStatus, sms.Label as PaymentStatus, c.Contract_ID, p.PAYMENT_ID, esm.StateMachineStateID_Current as PaymentStateID, cesm.StateMachineStateID_Current as ContractStateID
+from sm.EntityStateMember esm
+left outer join IMARC_GIMS.dbo.tblHPI_BonusPayments p on esm.ID = p.EntityStateMemberID
+left outer join IMARC_GIMS.dbo.tblContracts c on p.Contract_ID = c.Contract_ID
+left outer join sm.EntityStateMember cesm on c.EntityStateMemberID = cesm.ID
+left outer join sm.StateMachineState csms on cesm.StateMachineStateID_Current = csms.ID
+left outer join IMARC_GIMS.dbo.tblSoldiers s on c.SSNID = s.SSNID
+left outer join sm.StateMachineState sms on esm.StateMachineStateID_Current = sms.ID
+left join G1Lifecycle_DW..QQRCurrentStrength qqrcs on qqrcs.ssnid = s.ssnid
+where
+esm.StateMachineStateID_Current in (select StateMachineStateID from #paymentStates)
+and cesm.StateMachineStateID_Current in (select StateMachineStateID from #contractStates)
+and case when datepart(month, p.PaymentDate) >= 10 then datepart(year, p.PaymentDate) + 1 else datepart(year, p.PaymentDate) end = coalesce(@fy, case when datepart(month, p.PaymentDate) >= 10 then datepart(year, p.PaymentDate) + 1 else datepart(year, p.PaymentDate) end)
+order by c.FY, s.UnitState, s.name, c.ControlNumber, case when datepart(month, p.PaymentDate) >= 10 then datepart(year, p.PaymentDate) + 1 else datepart(year, p.PaymentDate) end
+*/
