@@ -1,0 +1,314 @@
+WITH POMMaster AS(
+SELECT frs.Run_DT
+	  ,s.rcms_UnitState_CD
+      , 'W' + s.UPC_CD as UIC_CD
+      ,s.UPC_CD
+	  ,frs.soldierid
+	  ,s.ssnid
+      ,s.rcms_ComponentCategory_CD
+      ,s.MPC_CD
+	  ,s.rcms_DutyMOS_CD
+	  ,s.DutySQI_CD
+	  ,s.DutyASI_CD
+	  ,s.DutyLIC
+      ,frs.rcms_Grade_CD
+      ,frs.NonDMOSQ_CNT
+	  ,s.rcms_TPC_CD
+	  ,s.rcms_DPQ_CD
+	  ,s.rcms_PSNPS_CD
+	  ,s.ObligorCareerist_CD
+	  ,ts.HasActiveSRIP
+	  ,ts.HasActiveOAB
+      ,ts.HasActiveOAFB
+      ,ts.HasActiveCLRP
+      ,ts.HasActiveHPLR
+	  ,ts.HPI_Pay_YN
+      ,ts.HPLR_CLRP_YN
+      ,ts.EnlistedIncentive_YN
+      ,ts.HasSLRPContract
+	  --,[RCMS_MDEP_CD]
+	  ,[MDEP]
+	  ,c.ContractType
+	  ,lc.description as ContractDescription
+	  ,c.ContractStatus
+	  ,c.Contract_ID
+	  ,c.ControlNumber
+	  ,c.FY as ContractFY
+	  --,sms.ShortUILabel
+	  --,sms.name as ContractUpdate
+	  ,c.IssueState
+	  ,p.BonusFY
+	  ,left(p.BonusDT,6) as BonusDT
+	  ,p.FY_PayDt as AnniveraryFY
+	  ,left(p.PayDT,6) as AnnivDT
+	  ,sp.bonusGroup
+	  ,sp.BonusType_ID
+	  ,p.BonusType
+	  ,sp.BGDesc as Category1
+	  ,ic.IT_Code as IncentiveType
+	  ,sp.BonusTypeDesc
+	  --,sp.longDesc as BonusDescription
+	  ,[CriticalMOSAOCs]
+      ,[CriticalGrades]
+      ,[CriticalUICs]
+      ,[CriticalASISQIs]
+	  ,c.bonusMOS
+	  ,c.bonusUNIT
+	  ,sp.BeginDate
+	  ,sp.EndDate
+	  ,c.Kicker_EligStatus
+	  ,p.Amount as BonusAmount
+	  ,sp.TotalAmount
+	  ,sp.InitialPayment
+	  ,s.InitialBonusPayment_DT
+	  ,sp.A1y
+	  ,sp.A2y
+	  ,sp.A3y
+	  ,sp.A4y
+	  ,sp.A5y
+	  ,sp.A6y
+	  ,sp.APC_Initial
+	  ,sp.APC_Anniversary
+	  --,[ReserveComponentIncentive1_CD]
+	  --,[BonusAmount1_AMT]
+   --   ,[ReserveComponentIncentive2_CD]
+	  --,[BonusAmount2_AMT]
+   --   ,[ReserveComponentIncentive3_CD]
+	  --,[BonusAmount3_AMT]
+   --   ,[ReserveComponentIncentive4_CD]
+	  --,[BonusAmount4_AMT]
+   --   ,[ReserveComponentIncentive5_CD]
+	  --,[BonusAmount5_AMT]
+   --   ,[ReserveComponentIncentive6_CD]
+	  --,[BonusAmount6_AMT]
+   --   ,[ReserveComponentIncentive7_CD]
+	  --,[BonusAmount7_AMT]
+	  ,ts.HasActiveKicker
+	  ,c.Rate_Code
+	  ,lr.LongDescription as RateDescription
+	  ,c.Rate_Amount
+	  ,c.MonthsOfBenefit
+	  ,ts.TotalBonusDfasPaid
+	  ,p.payNo
+	  ,p.PaymentNumber
+	  ,c.EnlistmentLength
+	  ,c.EnlistmentType
+	  ,lp.FY as LoanFY
+	  ,l.OriginalLoanAmt
+      ,l.Current_Principle
+      ,l.Current_Interest
+      ,l.Current_Balance
+      ,[InterestRate]
+	  ,lp.Actual_Principle
+      ,lp.Actual_Interest
+      ,lp.ActualIntRate
+      ,lp.Actual_Total
+      ,lp.Actual_Payment_Date
+	  ,s.EnlistedTrainingPipelineCategory_CD
+	  ,s.EnlistmentEffectiveFY
+	  ,ts.IS_LOSS
+      ,ts.DateOfLoss
+	  ,ts.LossReason
+	  ,ts.StatusMessage
+	  ,s.rcms_ETS_DT 
+      ,ts.ETS_Year
+	  ,ts.ETS_FromToday
+	  ,s.rcms_PEBD_DT
+      ,dd2.FiscalYear as PEBD_FY
+      ,Case when Datepart(DY,s.rcms_PEBD_Dt) <= DATEPART(DY,s.rcms_ETS_DT) then DateDiff(YY,s.rcms_PEBD_Dt,s.rcms_ETS_DT)  -- DateDiff calculates the years (YY) between DOB and Run_Date
+       when Datediff(YY,s.rcms_PEBD_Dt, DATEADD(yY,-1,s.rcms_ETS_DT) )= -1 then 0
+       else DateDiff(yy,s.rcms_PEBD_Dt,DateAdd(yy,-1,s.rcms_ETS_DT)) end as YearsInServiceAtETS 
+      ,frs.Assigned_CNT
+	  ,row_number () over (Partition by s.SSNID order by s.rcms_ETS_DT Desc) as RN
+
+  FROM G1LifeCycle_DW.dbo.FactStrengthAssessment frs
+  join G1LifeCycle_DW.dbo.Dimsoldierpersonnel s on frs.soldierid = s.id
+  left join [iMARC_GIMS].[dbo].[tblSoldiers] ts on s.ssnid = ts.ssnid
+  left join IMARC_GIMS.dbo.tblContracts c on s.ssnid = c.ssnid
+  left join [G1Lifecycle_DW].[dbo].[DimEnlistmentReservation] er on s.ssnid = er.ssnid
+  --left join [G1Lifecycle_DW_DP].[dbo].[DimDJMSRCVoucher] v on ts.ssnid = v.ssnid --and v.DutyFY = c.FY
+  left join [iMARC_GIMS].[dbo].[tblLoans] l on c.ssnid = l.ssnid
+  left join [iMARC_GIMS].[dbo].[tblLoans_Payments] lp on l.Loan_ID = lp.Loan_ID
+  left join IMARC_GIMS.dbo.tblSRIPpayments p on c.Contract_ID = p.SRIP_ID
+  --left join G1LifeCycle_GIMS.sm.EntityStateMember esm WITH(NOLOCK) on c.ArtifactID = esm.ArtifactID --c.EntityStateMemberID = esm.ID
+  --left Join G1LifeCycle_GIMS.sm.StateMachineState sms WITH(NOLOCK) on esm.StateMachineStateID_Current =  sms.ID --sms.StateMachineID
+  --LEFT join G1LifeCycle_GIMS.gims.vw_ContractStatesVirtualPayments cs on esm.StateMachineStateID_Current = cs.StateMachineStateID
+  left join G1LifeCycle_DW.dbo.dimDate dd1 on s.rcms_ETS_dt = dd1.run_dt
+  left join G1LifeCycle_DW.dbo.dimDate dd2 on s.rcms_PEBD_dt = dd2.run_dt
+	left join [iMARC_GIMS].[dbo].[tLookup_ContractType] lc on c.ContractType = lc.Code
+	left join [G1Lifecycle_Lookups].[dbo].[LKP_GIMSIncentiveRateCode] lr on c.Rate_Code = lr.Code
+	--left join [G1Lifecycle_Lookups].[dbo].[Lkp_BonusType_CD] lb on p.BonusType = lb.Code 
+	left join [G1Lifecycle_GIMS_Rules].[dbo].[tLookup_SRIP_Programs] sp on p.BonusType = sp.BonusType_ID
+	left join [iMARC_GIMS].[dbo].[tLookup_APC_MDEP] am on sp.APC_Initial = am.APC
+	left join IMARC_GIMS.dbo.tlookup_Incentive ic on lr.IncentiveType_CD = ic.IT_ID
+
+  where frs.run_dt = '20230930' and s.rcms_componentcategory_cd in ('TPU','AGR') /*and s.MPC_CD = 'E'*/ and frs.soldierid > 0
+  --order by 1, 2
+  )
+
+/*Table detail Overview*/
+--SELECT * 
+--FROM POMMaster
+--WHERE RN = 1
+/*=======================================================================================================================================*/
+
+/*POM SRIP Initial Bonus Payouts (Factor) by SM (Driver) and FY. Need to recreate the query 3x to capture loans and kickers*/
+--SELECT
+--	MDEP
+--	,APC_Initial
+--	,APC_Anniversary
+--	,IncentiveType
+--	,BonusGroup
+--	,BonusType_ID
+--	,RateDescription
+--	,ContractFY
+--	,sum(distinct case when InitialPayment is not null and InitialBonusPayment_DT between '20201001' and '20210930' then InitialPayment else 0 end) as FY21Factor
+--	,count(distinct case when InitialPayment is not null and InitialBonusPayment_DT between '20201001' and '20210930' then ssnid else 0 end) as FY21Driver
+--	,sum(distinct case when InitialPayment is not null and InitialBonusPayment_DT between '20211001' and '20220930' then InitialPayment else 0 end) as FY22Factor
+--	,count(distinct case when InitialPayment is not null and InitialBonusPayment_DT between '20211001' and '20220930' then ssnid else 0 end) as FY22Driver
+--	,sum(distinct case when InitialPayment is not null and InitialBonusPayment_DT between '20221001' and '20230930' then InitialPayment else 0 end) as FY23Factor
+--	,count(distinct case when InitialPayment is not null and InitialBonusPayment_DT between '20221001' and '20230930' then ssnid else 0 end) as FY23Driver
+
+--FROM POMMaster
+--WHERE ContractFY > '2016'
+--AND IncentiveType = 'SRIP'
+--Group By MDEP
+--	,APC_Initial
+--	,APC_Anniversary
+--	,IncentiveType
+--	,BonusGroup
+--	,BonusType_ID
+--	,RateDescription
+--	,ContractFY
+--Order by 8,5,6
+/*=========================================================================================================================================*/
+
+/*POM SRIP Anniversary Bonus Payouts (Factor) by SM (Driver) and FY*/
+--SELECT
+--	MDEP
+--	,APC_Initial
+--	,APC_Anniversary
+--	,IncentiveType
+--	,BonusGroup
+--	,BonusType_ID
+--	,RateDescription
+--	,ContractFY
+--	,sum(distinct case when BonusAmount is not null and AnniveraryFY = '2021' then BonusAmount else 0 end) as FY21Factor
+--	,count(distinct case when BonusAmount is not null and AnniveraryFY = '2021' then ssnid else 0 end) as FY21Driver
+--	,sum(distinct case when BonusAmount is not null and AnniveraryFY = '2022' then BonusAmount else 0 end) as FY22Factor
+--	,count(distinct case when BonusAmount is not null and AnniveraryFY = '2022' then ssnid else 0 end) as FY22Driver
+--	,sum(distinct case when BonusAmount is not null and AnniveraryFY = '2023' then BonusAmount else 0 end) as FY23Factor
+--	,count(distinct case when BonusAmount is not null and AnniveraryFY = '2023' then ssnid else 0 end) as FY23Driver
+
+--FROM POMMaster
+--WHERE ContractFY  > '2016'
+--AND IncentiveType = 'srip'
+--Group By MDEP
+--	,APC_Initial
+--	,APC_Anniversary
+--	,IncentiveType
+--	,BonusGroup
+--	,BonusType_ID
+--	,RateDescription
+--	,ContractFY
+--Order by 8,5,6
+/*======================================================================================================================================*/
+/*POM HPI Payouts (Factor) by SM (Driver) and FY*/
+SELECT
+	MDEP
+	,APC_Initial
+	,APC_Anniversary
+	,IncentiveType
+	,BonusGroup
+	,BonusType_ID
+	,RateDescription
+	,ContractFY
+	,sum(distinct case when TotalBonusDfasPaid is not null and ContractFY = '2021' then TotalBonusDfasPaid else 0 end) as FY21Factor
+	,count(distinct case when TotalBonusDfasPaid is not null and ContractFY = '2021' then ssnid else 0 end) as FY21Driver
+	,sum(distinct case when TotalBonusDfasPaid is not null and ContractFY = '2022' then TotalBonusDfasPaid else 0 end) as FY22Factor
+	,count(distinct case when TotalBonusDfasPaid is not null and ContractFY = '2022' then ssnid else 0 end) as FY22Driver
+	,sum(distinct case when TotalBonusDfasPaid is not null and ContractFY = '2023' then TotalBonusDfasPaid else 0 end) as FY23Factor
+	,count(distinct case when TotalBonusDfasPaid is not null and ContractFY = '2023' then ssnid else 0 end) as FY23Driver
+
+FROM POMMaster
+WHERE ContractFY  > '2016'
+AND IncentiveType in ('slrp','clrp')
+Group By MDEP
+	,APC_Initial
+	,APC_Anniversary
+	,IncentiveType
+	,BonusGroup
+	,BonusType_ID
+	,RateDescription
+	,ContractFY
+Order by 8,5,6
+
+
+/*BPS Incentive Rates Data*/
+--SELECT ContractType
+--	   ,BonusType_ID
+--	   ,BonusDescription
+--	   ,Category1
+--	   ,InitialPayment
+--	   ,TotalAmount
+--	   ,sum(distinct case when BonusDT = 202210 and BonusAmount is not null then bonusamount else 0 end) as OCT
+--	   ,count(distinct case when BonusDT = 202210 and BonusAmount is not null then ssnid else 0 end) as OCT1
+--	   ,sum(distinct case when BonusDT = 202211 and BonusAmount is not null then bonusamount else 0 end) as NOV
+--	   ,count(distinct case when BonusDT = 202211 and BonusAmount is not null then ssnid  else 0 end) as NOV1
+--	   ,sum(distinct case when BonusDT = 202212 and BonusAmount is not null then bonusamount else 0 end) as DEC
+--	   ,count(distinct case when BonusDT = 202212 and BonusAmount is not null then ssnid  else 0 end) as DEC1
+--	   ,sum(distinct case when BonusDT = 202301 and BonusAmount is not null then bonusamount else 0 end) as JAN
+--	   ,count(distinct case when BonusDT = 202301 and BonusAmount is not null then ssnid  else 0 end) as JAN1
+--	   ,sum(distinct case when BonusDT = 202302 and BonusAmount is not null then bonusamount else 0 end) as FEB
+--	   ,count(distinct case when BonusDT = 202302 and BonusAmount is not null then ssnid  else 0 end) as FEB1
+--	   ,sum(distinct case when BonusDT = 202303 and BonusAmount is not null then bonusamount else 0 end) as MAR
+--	   ,count(distinct case when BonusDT = 202303 and BonusAmount is not null then ssnid  else 0 end) as MAR1
+--	   ,sum(distinct case when BonusDT = 202304 and BonusAmount is not null then bonusamount else 0 end) as APR
+--	   ,count(distinct case when BonusDT = 202304 and BonusAmount is not null then ssnid  else 0 end) as APR1
+--	   ,sum(distinct case when BonusDT = 202305 and BonusAmount is not null then bonusamount else 0 end) as MAY
+--	   ,count(distinct case when BonusDT = 202305 and BonusAmount is not null then ssnid  else 0 end) as MAY1
+--	   ,sum(distinct case when BonusDT = 202306 and BonusAmount is not null then bonusamount else 0 end) as JUN
+--	   ,count(distinct case when BonusDT = 202306 and BonusAmount is not null then ssnid  else 0 end) as JUN1
+--	   ,sum(distinct case when BonusDT = 202307 and BonusAmount is not null then bonusamount else 0 end) as JUL
+--	   ,count(distinct case when BonusDT = 202307 and BonusAmount is not null then ssnid  else 0 end) as JUL1
+--	   ,sum(distinct case when BonusDT = 202308 and BonusAmount is not null then bonusamount else 0 end) as AUG
+--	   ,count(distinct case when BonusDT = 202308 and BonusAmount is not null then ssnid  else 0 end) as AUG1
+--	   ,sum(distinct case when BonusDT = 202309 and BonusAmount is not null then bonusamount else 0 end) as SEP
+--	   ,count(distinct case when BonusDT = 202309 and BonusAmount is not null then ssnid  else 0 end) as SEP1
+--FROM POMMaster pm
+----[G1Lifecycle_GIMS_Rules].[dbo].[tLookup_SRIP_Programs]
+--WHERE BonusFY = 2023
+--AND RN = 1
+--Group by ContractType
+--		,BonusType_ID
+--	   ,BonusDescription
+--	   ,Category1
+--	   ,InitialPayment
+--	   ,TotalAmount
+
+--SELECT Rate_Code
+--	   ,RateDescription
+--	   ,Category1
+--	   ,BonusDescription
+--	   ,InitialPayment
+--	   ,count(distinct case when BonusAmount is not null and BonusDT = 202010 then ssnid else 0 end) as OCT
+--	   ,count(distinct case when BonusAmount is not null and BonusDT = 202011 then ssnid  else 0 end) as NOV
+--	   ,count(distinct case when BonusAmount is not null and BonusDT = 202012 then ssnid  else 0 end) as DEC
+--	   ,count(distinct case when BonusAmount is not null and BonusDT = 202101 then ssnid  else 0 end) as JAN
+--	   ,count(distinct case when BonusAmount is not null and BonusDT = 202102 then ssnid  else 0 end) as FEB
+--	   ,count(distinct case when BonusAmount is not null and BonusDT = 202103 then ssnid  else 0 end) as MAR
+--	   ,count(distinct case when BonusAmount is not null and BonusDT = 202104 then ssnid  else 0 end) as APR
+--	   ,count(distinct case when BonusAmount is not null and BonusDT = 202105 then ssnid  else 0 end) as MAY
+--	   ,count(distinct case when BonusAmount is not null and BonusDT = 202106 then ssnid  else 0 end) as JUN
+--	   ,count(distinct case when BonusAmount is not null and BonusDT = 202107 then ssnid  else 0 end) as JUL
+--	   ,count(distinct case when BonusAmount is not null and BonusDT = 202108 then ssnid  else 0 end) as AUG
+--	   ,count(distinct case when BonusAmount is not null and BonusDT = 202109 then ssnid  else 0 end) as SEP
+--FROM POMMaster pm
+----LEFT Join [iMARC_GIMS].[dbo].[vw_Report_SRIPCustomFinancialReport] SFR on pm.BonusType = sfr.IncentiveProgramCode
+
+--Group by
+--		Rate_Code
+--	   ,RateDescription
+--	   ,Category1
+--	   ,BonusDescription
+--	   ,InitialPayment
