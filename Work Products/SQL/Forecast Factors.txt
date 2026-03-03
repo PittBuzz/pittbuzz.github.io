@@ -1,0 +1,180 @@
+  /* SRIP Forecast Factors*/
+ WITH SRIP AS ( 
+  SELECT c.ssnid
+        ,c.IssueState
+		,MDEP
+		,APC_Initial
+		,APC_Anniversary
+		,Program as IncentiveType
+		,BGDesc as Incentive_desc
+		,sp.TotalAmount
+		,sp.InitialPayment
+		,sp.A1y
+		,sp.A2y
+		,sp.A3y
+		,sp.A4y
+		,sp.A5y
+		,sp.A6y
+	  ,case when sp.contracttype like 'REA%' then '1 - SRIP - 7'
+	        when sp.contracttype like 'R%' and sp.length in (2,3,4) then '1 - SRIP - 3'
+			when sp.contracttype like 'R%' and sp.length = 6 then '1 - SRIP - 4'
+			when sp.contracttype like 'E%' then '1 - SRIP - 1'
+			when sp.contracttype like 'N%' then '1 - SRIP - 0'
+			when sp.contracttype like 'P%' and sp.length in (3,6) then '1 - SRIP - 2'
+			when sp.contracttype like 'O%' then '1 - SRIP - 8'
+			when sp.contracttype = 'CO' then '1 - SRIP - 8'
+			when sp.contracttype like 'M%' then '1 - SRIP - 8'
+	   Else '' End as BonusGroup
+	  ,case when sp.contracttype like 'REA%' then 'AGR 79T Reup'
+	        when sp.contracttype like 'R%' and sp.length = 2 then '2 Year Reup'
+	        when sp.contracttype like 'R%' and sp.length = 3 then '3 Year Reup'
+			when sp.contracttype like 'R%' and sp.length = 4 then '4 Year Reup'
+			when sp.contracttype like 'R%' and sp.length = 6 then '6 Year Reup'
+			when sp.contracttype like 'E%' then 'Affiliation Bonus'
+			when sp.contracttype like 'N%' or sp.BonusType_ID like 'N%' then 'NPS Enlistment'
+			when sp.contracttype like 'P%' and sp.length = 3 then 'Prior Service 3 Year'
+			when sp.contracttype like 'P%' and sp.length = 6 then 'Prior Service 6 Year'
+			when sp.contracttype = 'CO' then 'Critical Retention'
+			when sp.BonusType_ID in ('O84','O85','O86','O88') then 'Officer Retention'
+			when sp.BonusType_ID like 'O%' and sp.BonusType_ID not in ('O84','O85','O86','O88') then 'Officer Affiliation'
+			when sp.contracttype like 'M%' then 'MOS Conversion'
+			
+	   Else '' End as BonusType
+		,BonusTypeDesc
+		,c.FY
+		,c.paydt
+		,Case When c.PaymentNumber = 1 then 'Initial' 
+		      When c.PaymentNumber > 1  then 'Anniversary'
+			  else 'Payment'
+			  end as PayType
+		,c.Amount
+		,c.Executed
+		,c.ExecutedPayment_CNT 
+		,c.Obligated_CNT 
+		,c.contractstatus
+		,c.paymentstatus
+	    ,row_number () over (Partition by c.ssnid order by c.paydt Desc) as RN
+FROM  [G1Lifecycle_GIMS].[dbo].[tblSRIP_BudgetCache] c 
+inner join [G1Lifecycle_GIMS_Rules].[dbo].[tLookup_SRIP_Programs] sp on c.Rate_Code = sp.BonusType_ID
+left join [iMARC_GIMS].[dbo].[tLookup_APC_MDEP] m on sp.APC_Initial = m.APC
+Where sp.contracttype <> 'CP'
+and sp.enddate < '99990101'
+ )
+SELECT   MDEP
+		,APC_Initial
+		,APC_Anniversary
+		,IncentiveType
+		,BonusGroup
+		,BonusType
+		,BonusTypeDesc
+		,FY
+		,PayType
+		,InitialPayment
+		,A1y
+		,A2y
+		,A3y
+		,A4y
+		,A5y
+		,A6y
+FROM SRIP
+Where FY in (2019,2020,2021, 2022, 2023, 2024)
+Group by
+        MDEP
+		,APC_Initial
+		,APC_Anniversary
+		,IncentiveType
+		,BonusGroup
+		,BonusType
+		,BonusTypeDesc
+		,FY
+		,PayType
+		,InitialPayment
+		,A1y
+		,A2y
+		,A3y
+		,A4y
+		,A5y
+		,A6y
+Order by 8,5
+
+/*============================================== HPI Forecast Factors=================================================*/
+ WITH HPI AS ( 
+  SELECT c.ssnid
+        ,c.IssueState
+		,PaymentID
+		,MDEP
+		,APC_Initial
+		,APC_Anniversary
+		,Program as IncentiveType
+		,sp.BGDesc as Incentive_desc
+		,sp.TotalAmount
+		,sp.InitialPayment
+		,sp.A1y
+		,sp.A2y
+		,sp.A3y
+		,sp.A4y
+		,sp.A5y
+		,sp.A6y
+	 ,case  when tl.LoanType_ID like 'H%' or sp.BonusType_ID like 'SP%'  then '2 - HPI - 3'
+			when sp.BonusType_ID like 'V%' then '2 - HPI - 4'
+	  Else '' End as BonusGroup
+	  ,case when tl.LoanType_ID like 'H%' or sp.BonusType_ID like 'SP%' then 'HPLR'
+	        when sp.BonusType_ID like 'V%' then 'HP Bonus'
+	  Else '' End as BonusType
+		,longDesc as BonusTypeDesc
+		,c.FY
+		,c.paydt
+		,Case When c.PaymentNumber = 1 then 'Initial' 
+		      When c.PaymentNumber > 1  then 'Anniversary'
+			  else 'Payment'
+			  end as PayType
+		,c.Amount
+		,c.Executed
+		,c.ExecutedPayment_CNT 
+		,c.Obligated_CNT
+		,c.contractstatus
+		,c.paymentstatus
+	    ,row_number () over (Partition by c.ssnid order by c.paydt Desc) as RN
+FROM [G1Lifecycle_GIMS].[dbo].[tblSpecialPay_BudgetCache] c
+left join IMARC_GIMS.dbo.tblContracts tc on c.ContractID = tc.contract_id
+left join [iMARC_GIMS].[dbo].[tblLoans] l on c.ContractID = l.Contract_ID
+left join [G1Lifecycle_GIMS_Rules].[dbo].[tLookup_Loan_Programs] tl on tc.ContractType = tl.ContractType
+ inner join [G1Lifecycle_GIMS_Rules].[dbo].[tLookup_SRIP_Programs] sp on c.rate_code = sp.BonusType_ID
+ left join [iMARC_GIMS].[dbo].[tLookup_APC_MDEP] m on sp.APC_Initial = m.APC
+ )
+ SELECT   MDEP
+		,APC_Initial
+		,APC_Anniversary
+		,IncentiveType
+		,BonusGroup
+		,BonusType
+		,BonusTypeDesc
+		,FY
+		,PayType
+		,InitialPayment
+		,A1y
+		,A2y
+		,A3y
+		,A4y
+		,A5y
+		,A6y
+FROM HPI
+Where FY in (2019,2020,2021, 2022, 2023, 2024)
+Group by
+        MDEP
+		,APC_Initial
+		,APC_Anniversary
+		,IncentiveType
+		,BonusGroup
+		,BonusType
+		,BonusTypeDesc
+		,FY
+		,PayType
+		,InitialPayment
+		,A1y
+		,A2y
+		,A3y
+		,A4y
+		,A5y
+		,A6y
+Order by 8,5
