@@ -1,0 +1,129 @@
+-------------------------------------------------------------------------------------------------------------------
+/* SARIMAX */
+-------------------------------------------------------------------------------------------------------------------
+
+-------------------------------------------------------------------------------------------------------------------
+/* Call to SarimaX_Model that inserts ouputs into corresponding tables */
+-------------------------------------------------------------------------------------------------------------------
+use onsitesupport
+DECLARE	@input_query NVARCHAR(MAX),
+		@trained_model varbinary(max),
+		@input_variables nvarchar(500),
+		@input_predictionColumn NVARCHAR(100),
+		@input_exogenousColumns NVARCHAR(MAX),
+		@excluded_columns NVARCHAR(MAX),
+		@input_dateFrequency NVARCHAR(10),
+		@input_confidenceAlpha float,
+		@input_test_size int,
+		@autoArima_p_Trend int, 
+		@autoArima_d_Trend int, 
+		@autoArima_q_Trend int,
+		@autoArima_P_Seasonal int, 
+		@autoArima_D_Seasonal int, 
+		@autoArima_Q_Seasonal int,
+		@input_p_Trend int,
+		@input_d_Trend int,
+		@input_q_Trend int,
+		@input_P_Seasonal int,
+		@input_D_Seasonal int,
+		@input_Q_Seasonal int,
+		@input_Seasonality int,
+		@mse float,
+		@rmse float,
+		@mae float
+
+ Create table #table1
+(yearmonth date
+,RE_Contracts int
+,eligibles float
+)
+;
+With CTE as (
+
+Select cast(max(eligibles) as float) max_eligibles  FROM [OnSiteSupport].[dbo].[RE_SRIP_Rates_eligible] 
+where 
+yisgroup='careerist' 
+--yisgroup='obligor'
+and yearmonth>='202110'
+)
+insert into #table1
+ 
+Select cast(([yearmonth]+'01') as date) yearmonth, contracts as RE_Contracts, eligibles/max_eligibles as  eligibles
+
+FROM [OnSiteSupport].[dbo].[RE_SRIP_Rates_eligible] 
+join cte on 1=1
+where 
+yisgroup='careerist'
+--yisgroup='obligor'
+and yearmonth>='202110' 
+order by yearmonth
+
+
+select * from #table1
+DECLARE @query nvarchar(max)
+set @query = N' Select cast(([yearmonth]+''01'') as date) yearmonth, contracts as RE_Contracts, eligibles as  eligibles  into #table1 FROM [OnSiteSupport].[dbo].[RE_SRIP_Rates_eligible] where yisgroup=''obligor'' and yearmonth>=''202205'' order by yearmonth'
+
+EXEC	[ML].[SarimaX_Model]
+		@dataTable = #table1,
+		@query = @query,
+		@dateColumn = 'yearmonth',
+		@predictionColumn = 'RE_Contracts',
+		@exogenousColumns = 'eligibles',
+		@columnsToExclude = '',
+		@dateFrequency = 'M',
+		@confidenceAlpha = 0.5, -- 95% confidence
+		@modelName = 'SarimaxModel_RERates_Eligibles', 
+		@test_size = 12, -- This number should be how many months/days/weeks... you want to forecast
+		@useAutoArima = 'True',
+		@p_Trend = 0,
+		@d_Trend = 0,
+		@q_Trend = 0,
+		@P_Seasonal = 0,
+		@D_Seasonal = 0,
+		@Q_Seasonal = 0,
+		@Seasonality = 12,
+		@input_query = @input_query OUTPUT,
+		@trained_model = @trained_model OUTPUT,
+		@input_variables = @input_variables OUTPUT,
+		@input_predictionColumn = @input_predictionColumn OUTPUT,
+		@input_exogenousColumns = @input_exogenousColumns OUTPUT,
+		@excluded_columns = @excluded_columns OUTPUT,
+		@input_dateFrequency = @input_dateFrequency OUTPUT,
+		@input_confidenceAlpha = @input_confidenceAlpha OUTPUT,
+		@input_test_size = @input_test_size OUTPUT,
+		@autoArima_p_Trend = @autoArima_p_Trend OUTPUT,
+		@autoArima_d_Trend = @autoArima_d_Trend OUTPUT,
+		@autoArima_q_Trend = @autoArima_q_Trend OUTPUT,
+		@autoArima_P_Seasonal = @autoArima_D_Seasonal OUTPUT,
+		@autoArima_D_Seasonal = @autoArima_D_Seasonal OUTPUT,
+		@autoArima_Q_Seasonal = @autoArima_Q_Seasonal OUTPUT,
+		@input_p_Trend = @input_p_Trend OUTPUT,
+		@input_d_Trend = @input_d_Trend OUTPUT,
+		@input_q_Trend = @input_q_Trend OUTPUT,
+		@input_P_Seasonal = @input_P_Seasonal OUTPUT,
+		@input_D_Seasonal = @input_D_Seasonal OUTPUT,
+		@input_Q_Seasonal = @input_Q_Seasonal OUTPUT,
+		@input_Seasonality = @input_Seasonality OUTPUT,
+		@mse = @mse OUTPUT,
+		@rmse = @rmse OUTPUT,
+		@mae = @mae OUTPUT
+
+drop table #table1
+
+select * from ML.ML_models m 
+	join ML.ML_Model_Inputs_SarimaX ms on m.Model_ID = ms.Model_ID 
+	join ML.ML_Model_Stats_SarimaX mq on ms.ModelInputs_ID = mq.ModelInputs_ID
+	where m.Model_Name = 'SarimaxModel_RERates_Eligibles'
+
+
+-------------------------------------------------------------------------------------------------------------------
+/* Call to SarimaX_Prediction for analysis */
+-------------------------------------------------------------------------------------------------------------------
+
+--select date, total
+--into #table2
+--from ML.ML_Model_Data_TimeSeries_RestaurantVisitors
+
+--exec ml.Sarimax_Prediction @modelID = 285, @dataTable = #table2
+
+--drop table #table2
