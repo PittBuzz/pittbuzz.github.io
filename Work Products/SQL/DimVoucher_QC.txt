@@ -1,0 +1,302 @@
+/**** Multiple table and data base analysis query.  I chose a temp table as it can be run once and used throughout the analysis session.  It also lends towards recursive CTEs within the overall query structure------ ****/ 
+
+/*** Temp table creation. This basic design can be modified for multiple tables across Dbs. ***/
+
+SELECT [ID]
+		  ,[SSNID]
+		  ,[DJMSRC_Voucher_DutyMonth]
+		  ,[DJMSRC_Voucher_VoucherMonth]
+		  ,[DJMSRC_Voucher_APC_CD]
+		  ,[DJMSRC_Voucher_CmpOfPay_CD]
+		  ,[DJMSRC_Voucher_EOR_CD]
+		  ,[DJMSRC_Voucher_DutyCategory]
+		  ,[DJMSRC_Voucher_DutyType]
+		  ,[DJMSRC_Voucher_BasicSym_CD]
+		  ,[DJMSRC_Voucher_AMSCO_CD]
+		  ,[RCMS_AMSCO2_CD]
+		  ,[DJMSRC_Voucher_AD_QY]
+		  ,[DJMSRC_Voucher_Drill_QY]
+		  ,[DJMSRC_Voucher_Payment_QY]
+		  ,[DJMSRC_Voucher_IsCost]
+		  ,[DJMSRC_Voucher_TotalCost]
+		  ,[DJMSRC_Voucher_ADCost]
+		  ,[DJMSRC_Voucher_DrillCost]
+		  ,[DJMSRC_Voucher_OtherCost]
+		  ,[VoucherFY]
+		  ,[DutyFY]
+		  ,[DJMSRC_Voucher_IsSoldierCost_YN]
+		  ,[CostPerADDay_QY]
+		  ,[CostPerDrill_QY]
+		  ,[PayHeaderFileID]
+		  ,[rcms_TDC_CD]
+		  ,[RCMS_MDEP_CD]
+	
+INTO #DimVoucher
+	
+FROM (	
+	SELECT [ID]
+		  ,[SSNID]
+		  ,[DJMSRC_Voucher_DutyMonth]
+		  ,[DJMSRC_Voucher_VoucherMonth]
+		  ,[DJMSRC_Voucher_APC_CD]
+		  ,[DJMSRC_Voucher_CmpOfPay_CD]
+		  ,[DJMSRC_Voucher_EOR_CD]
+		  ,[DJMSRC_Voucher_DutyCategory]
+		  ,[DJMSRC_Voucher_DutyType]
+		  ,[DJMSRC_Voucher_BasicSym_CD]
+		  ,[DJMSRC_Voucher_AMSCO_CD]
+		  ,[RCMS_AMSCO2_CD]
+		  ,[DJMSRC_Voucher_AD_QY]
+		  ,[DJMSRC_Voucher_Drill_QY]
+		  ,[DJMSRC_Voucher_Payment_QY]
+		  ,[DJMSRC_Voucher_IsCost]
+		  ,[DJMSRC_Voucher_TotalCost]
+		  ,[DJMSRC_Voucher_ADCost]
+		  ,[DJMSRC_Voucher_DrillCost]
+		  ,[DJMSRC_Voucher_OtherCost]
+		  ,[VoucherFY]
+		  ,[DutyFY]
+		  ,[DJMSRC_Voucher_IsSoldierCost_YN]
+		  ,[CostPerADDay_QY]
+		  ,[CostPerDrill_QY]
+		  ,[PayHeaderFileID]
+		  ,[rcms_TDC_CD]
+		  ,[RCMS_MDEP_CD]
+
+	  --FROM [G1Lifecycle_DW_DP].[dbo].[DimDJMSRCVoucher]
+	  FROM [OnSiteSupport].[dbo].[DimDJMSRCVoucher]
+
+	  WHERE VoucherFY between 2016 and 2021 -- These are the dates specified by Jim Green
+  )x
+
+ /** The temp table will now be the main data source for all subsequent analysis **/
+
+ /* Column Counts by Year ==============================================================================*/
+
+	  SELECT  
+		  [DJMSRC_Voucher_APC_CD]
+		  --[DJMSRC_Voucher_CmpOfPay_CD]
+		  --[DJMSRC_Voucher_EOR_CD] as EOR_CD
+		  --[DJMSRC_Voucher_DutyCategory] as DutyCat
+		  --[DJMSRC_Voucher_DutyType] as DutyType
+		  --[DJMSRC_Voucher_BasicSym_CD] as BasicSym
+		  --[DJMSRC_Voucher_AMSCO_CD] as AMSCO
+		  --[PayHeaderFileID]
+		  --[rcms_TDC_CD] as TDC
+		  --[RCMS_MDEP_CD] as MDEP
+		  ,Sum(Case When VoucherFY = 2016 Then 1 Else 0 End) as '2016'
+		  ,Sum(Case When VoucherFY = 2017 Then 1 Else 0 End) as '2017'
+		  ,Sum(Case When VoucherFY = 2018 Then 1 Else 0 End) as '2018'
+		  ,Sum(Case When VoucherFY = 2019 Then 1 Else 0 End) as '2019'
+		  ,Sum(Case When VoucherFY = 2020 Then 1 Else 0 End) as '2020'
+		  ,Sum(Case When VoucherFY = 2021 Then 1 Else 0 End) as '2021'
+	 
+	  From #DimVoucher
+
+	  Group by      		  
+		  [DJMSRC_Voucher_APC_CD]
+		  --[DJMSRC_Voucher_CmpOfPay_CD]
+		  --[DJMSRC_Voucher_EOR_CD]
+		  --[DJMSRC_Voucher_DutyCategory]
+		  --[DJMSRC_Voucher_DutyType]
+		  --[DJMSRC_Voucher_BasicSym_CD]
+		  --[DJMSRC_Voucher_AMSCO_CD]
+		  --[PayHeaderFileID]
+		  --[rcms_TDC_CD]
+		  --[RCMS_MDEP_CD]
+	   
+	  Order by 1
+
+
+/* Column Null Value Counts ==================================================================================================*/
+ 
+	  SELECT
+		  Sum(Case When VoucherFY = 2016 Then 1 Else 0 End) as '2016'
+		  ,Sum(Case When VoucherFY = 2017 Then 1 Else 0 End) as '2017'
+		  ,Sum(Case When VoucherFY = 2018 Then 1 Else 0 End) as '2018'
+		  ,Sum(Case When VoucherFY = 2019 Then 1 Else 0 End) as '2019'
+		  ,Sum(Case When VoucherFY = 2020 Then 1 Else 0 End) as '2020'
+		  ,Sum(Case When VoucherFY = 2021 Then 1 Else 0 End) as '2021'
+
+	  From #DimVoucher
+
+	  Where
+		  --[DJMSRC_Voucher_DutyMonth] is null
+		  --[DJMSRC_Voucher_VoucherMonth] is null
+		  --[ID] is null
+		  --[SSNID] is null
+		  --[DJMSRC_Voucher_Payment_QY] is null
+		  --[DJMSRC_Voucher_IsCost] is null
+		  --[DJMSRC_Voucher_TotalCost] is null
+		  --[DJMSRC_Voucher_ADCost] is null
+		  --[DJMSRC_Voucher_DrillCost] is null
+		  --[DJMSRC_Voucher_OtherCost] is null
+		  --[VoucherFY] is null
+		  --[DutyFY] is null
+		  --[DJMSRC_Voucher_IsSoldierCost_YN] is null
+		  --[CostPerADDay_QY] is null
+		  --[CostPerDrill_QY] is null
+		  [PayHeaderFileID] is null
+
+/* Duplicate Counts ===========================================================================================================*/
+
+	  SELECT  --ID
+			  --SSNID
+			  PayHeaderFileID
+			  DJMSRC_Voucher_OtherCost
+			  ,Sum (Case When VoucherFY  = 2016 Then 1 Else NULL End) as '2016'
+			  ,Sum(Case When VoucherFY  = 2017 Then 1 Else NULL End) as '2017'
+			  ,Sum(Case When VoucherFY  = 2018 Then 1 Else NULL End) as '2018'
+			  ,Sum (Case When VoucherFY  = 2019 Then 1 Else NULL End) as '2019'
+			  ,Sum(Case When VoucherFY  = 2020 Then 1 Else NULL End) as '2020'
+			  ,Sum(Case When VoucherFY  = 2021 Then 1 Else NULL End) as '2021'
+			  
+
+	  From #DimVoucher
+	
+	  Group by --ID 
+			  --SSNID
+			  PayHeaderFileID
+			 
+	  With Rollup
+	  
+	  Having count(*) > 1
+
+	  Order by 2 Desc
+
+/*** Summary Statistics: the queries are sub-divided into distinct groupings for easier data accounting. Note these queries can be seperated into distinct queries ***/
+
+/**Create a CTE off of the temp table to manage multiple variables and date ranges **/
+
+--WITH Alias AS
+--(SELECT	     --[DJMSRC_Voucher_TotalCost] as A
+--		     --[DJMSRC_Voucher_ADCost] as A
+--			 --[DJMSRC_Voucher_DrillCost] as A
+--			 [DJMSRC_Voucher_OtherCost] as A
+--			 ,VoucherFY
+--From #DimVoucher)
+
+/* Min Max Values by Year ====================================================================================== */
+
+--		SELECT    --Comment out each section before starting a new summary stat
+			  
+--			   Min(Case When A is not null and VoucherFY  = 2016 Then A End) as 'Min2016'
+--			  ,Max(Case When A is not null and VoucherFY  = 2016 Then A End) as 'Max2016'
+--			  ,Min(Case When A is not null and VoucherFY  = 2017 Then A End) as 'Min2017'
+--			  ,Max(Case When A is not null and VoucherFY  = 2017 Then A End) as 'Max2017'
+--			  ,Min(Case When A is not null and VoucherFY  = 2018 Then A End) as 'Min2018'
+--			  ,Max(Case When A is not null and VoucherFY  = 2018 Then A End) as 'Max2018'
+--			  ,Min(Case When A is not null and VoucherFY  = 2019 Then A End) as 'Min2019'
+--			  ,Max(Case When A is not null and VoucherFY  = 2019 Then A End) as 'Max2019'
+--			  ,Min(Case When A is not null and VoucherFY  = 2020 Then A End) as 'Min2020'
+--			  ,Max(Case When A is not null and VoucherFY  = 2020 Then A End) as 'Max2020'
+--			  ,Min(Case When A is not null and VoucherFY  = 2021 Then A End) as 'Min2021'
+--			  ,Max(Case When A is not null and VoucherFY  = 2021 Then A End) as 'Max2021'
+
+--/* Mean by Year ======================================================================================================*/
+
+--			  ,Avg(Case When A is not null and VoucherFY  = 2016 Then A End) as 'Mean2016'
+--			  ,Avg(Case When A is not null and VoucherFY  = 2017 Then A End) as 'Mean2017'
+--			  ,Avg(Case When A is not null and VoucherFY  = 2018 Then A End) as 'Mean2018'
+--			  ,Avg(Case When A is not null and VoucherFY  = 2019 Then A End) as 'Mean2019'
+--			  ,Avg(Case When A is not null and VoucherFY  = 2020 Then A End) as 'Mean2020'
+--			  ,Avg(Case When A is not null and VoucherFY  = 2021 Then A End) as 'Mean2021'
+
+--/* Standard Deviation by Year ========================================================================================*/
+
+--			  ,Stdev(Case When A is not null and VoucherFY  = 2016 Then A End) as 'SD2016'
+--			  ,Stdev(Case When A is not null and VoucherFY  = 2017 Then A End) as 'SD2017'
+--			  ,Stdev(Case When A is not null and VoucherFY  = 2018 Then A End) as 'SD2018'
+--			  ,Stdev(Case When A is not null and VoucherFY  = 2019 Then A End) as 'SD2019'
+--			  ,Stdev(Case When A is not null and VoucherFY  = 2020 Then A End) as 'SD2020'
+--			  ,Stdev(Case When A is not null and VoucherFY  = 2021 Then A End) as 'SD2021'
+
+
+--		From Alias -- this is the end of the three above statistics 
+		
+/** The below statistics do not have an organic function and thus have to be built and called individually **/
+
+/* Mode by Year ====================================================================================================*/
+
+			--Select Top 1 A as 'Mode2016' From Alias WHERE VoucherFY = 2016 Group by A Order by Count(*) Desc
+			--Select Top 1 A as 'Mode2017' From Alias WHERE VoucherFY = 2017 Group by A Order by Count(*) Desc
+			--Select Top 1 A as 'Mode2018' From Alias WHERE VoucherFY = 2021 Group by A Order by Count(*) Desc
+			--Select Top 1 A as 'Mode2019' From Alias WHERE VoucherFY = 2019 Group by A Order by Count(*) Desc
+			--Select Top 1 A as 'Mode2020' From Alias WHERE VoucherFY = 2020 Group by A Order by Count(*) Desc
+			--Select Top 1 A as 'Mode2021' From Alias WHERE VoucherFY = 2021 Group by A Order by Count(*) Desc
+
+/** Refresh the CTE to avoid scrolling too far comment out the original **/
+
+WITH Alias AS  
+(SELECT		 --[DJMSRC_Voucher_TotalCost] as A
+		     --[DJMSRC_Voucher_ADCost] as A
+			 --[DJMSRC_Voucher_DrillCost] as A
+			 [DJMSRC_Voucher_OtherCost] as A
+			 ,VoucherFY
+From #DimVoucher)
+
+/* Median by Year ================================================================================================================== */
+
+		--Select((Select Max(A) from (Select TOP 50 Percent A From Alias Where VoucherFY = 2016 Order by A) as Bottom) + (Select Min(A) from (Select TOP 50 Percent A From Alias Where VoucherFY = 2016 Order by A Desc) as TopH)
+		--) / 2 as Median2016
+
+		--Select((Select Max(A) from (Select TOP 50 Percent A From Alias Where VoucherFY = 2017 Order by A) as Bottom) + (Select Min(A) from (Select TOP 50 Percent A From Alias Where VoucherFY = 2017 Order by A Desc) as TopH)
+		--) / 2 as Median2017
+
+		--Select((Select Max(A) from (Select TOP 50 Percent A From Alias Where VoucherFY = 2018 Order by A) as Bottom) + (Select Min(A) from (Select TOP 50 Percent A From Alias Where VoucherFY = 2018 Order by A Desc) as TopH)
+		--) / 2 as Median2018
+
+		--Select((Select Max(A) from (Select TOP 50 Percent A From Alias Where VoucherFY = 2019 Order by A) as Bottom) + (Select Min(A) from (Select TOP 50 Percent A From Alias Where VoucherFY = 2019 Order by A Desc) as TopH)
+		--) / 2 as Median2019
+
+		--Select((Select Max(A) from (Select TOP 50 Percent A From Alias Where VoucherFY = 2020 Order by A) as Bottom) + (Select Min(A) from (Select TOP 50 Percent A From Alias Where VoucherFY = 2020 Order by A Desc) as TopH)
+		--) / 2 as Median2020
+
+		--Select((Select Max(A) from (Select TOP 50 Percent A From Alias Where VoucherFY = 2021 Order by A) as Bottom) + (Select Min(A) from (Select TOP 50 Percent A From Alias Where VoucherFY = 2021 Order by A Desc) as TopH)
+		--) / 2 as Median2021
+
+/* Quartiles by Year ============================================================================================================================================================================================================== */
+	--2016
+		  --Select((Select Max(A) from (Select TOP 25 Percent A From Alias Where VoucherFY = 2016 Order by A) as Bottom) + (Select Min(A) from (Select TOP 75 Percent A From Alias Where VoucherFY = 2016 Order by A Desc) as TopH)
+		  --) / 2 as '1stQuartile2016'
+		  --Select((Select Max(A) from (Select TOP 75 Percent A From Alias Where VoucherFY = 2016 Order by A) as Bottom) + (Select Min(A) from (Select TOP 25 Percent A From Alias Where VoucherFY = 2016 Order by A Desc) as TopH)
+		  --) / 2 as '3rdQuartile2016'
+	--2017
+		  --Select((Select Max(A) from (Select TOP 25 Percent A From Alias Where VoucherFY = 2017 Order by A) as Bottom) + (Select Min(A) from (Select TOP 75 Percent A From Alias Where VoucherFY = 2017 Order by A Desc) as TopH)
+		  --) / 2 as '1stQuartile2017'
+		  --Select((Select Max(A) from (Select TOP 75 Percent A From Alias Where VoucherFY = 2017 Order by A) as Bottom) + (Select Min(A) from (Select TOP 25 Percent A From Alias Where VoucherFY = 2017 Order by A Desc) as TopH)
+		  --) / 2 as '3rdQuartile2017'
+	--2018
+		  --Select((Select Max(A) from (Select TOP 25 Percent A From Alias Where VoucherFY = 2018 Order by A) as Bottom) + (Select Min(A) from (Select TOP 75 Percent A From Alias Where VoucherFY = 2018 Order by A Desc) as TopH)
+		  --) / 2 as '1stQuartile2018'
+		  --Select((Select Max(A) from (Select TOP 75 Percent A From Alias Where VoucherFY = 2018 Order by A) as Bottom) + (Select Min(A) from (Select TOP 25 Percent A From Alias Where VoucherFY = 2018 Order by A Desc) as TopH)
+		  --) / 2 as '3rdQuartile2018'
+	--2019
+		  --Select((Select Max(A) from (Select TOP 25 Percent A From Alias Where VoucherFY = 2019 Order by A) as Bottom) + (Select Min(A) from (Select TOP 75 Percent A From Alias Where VoucherFY = 2019 Order by A Desc) as TopH)
+		  --) / 2 as '1stQuartile2019'
+		  --Select((Select Max(A) from (Select TOP 75 Percent A From Alias Where VoucherFY = 2019 Order by A) as Bottom) + (Select Min(A) from (Select TOP 25 Percent A From Alias Where VoucherFY = 2019 Order by A Desc) as TopH)
+		  --) / 2 as '3rdQuartile2019'
+	--2020
+		  --Select((Select Max(A) from (Select TOP 25 Percent A From Alias Where VoucherFY = 2020 Order by A) as Bottom) + (Select Min(A) from (Select TOP 75 Percent A From Alias Where VoucherFY = 2020 Order by A Desc) as TopH)
+		  --) / 2 as '1stQuartile2020'
+		  Select((Select Max(A) from (Select TOP 75 Percent A From Alias Where VoucherFY = 2020 Order by A) as Bottom) + (Select Min(A) from (Select TOP 25 Percent A From Alias Where VoucherFY = 2020 Order by A Desc) as TopH)
+		  ) / 2 as '3rdQuartile2020'
+	--2021
+		  --Select((Select Max(A) from (Select TOP 25 Percent A From Alias Where VoucherFY = 2021 Order by A) as Bottom) + (Select Min(A) from (Select TOP 75 Percent A From Alias Where VoucherFY = 2021 Order by A Desc) as TopH)
+		  --) / 2 as '1stQuartile2021'
+		  --Select((Select Max(A) from (Select TOP 75 Percent A From Alias Where VoucherFY = 2021 Order by A) as Bottom) + (Select Min(A) from (Select TOP 25 Percent A From Alias Where VoucherFY = 2021 Order by A Desc) as TopH)
+		  --) / 2 as '3rdQuartile2021'
+			
+	
+	---- Query QC
+	--select  DJMSRC_Voucher_TotalCost
+	-- From #DimVoucher
+	-- where VoucherFY  = 2016
+	-- order by 1 desc
+
+
+ --Top 10 dollar figure counts QC			  
+Select TOP 10 A, count(*)
+From Alias 
+Where VoucherFY = 2016
+Group by A
